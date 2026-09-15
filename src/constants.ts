@@ -8,8 +8,17 @@ export const DEFAULT_BASE_URL = "https://api.commandcode.ai/provider/v1"
 /** Public model catalog endpoint (no auth required). */
 export const DEFAULT_MODELS_URL = "https://api.commandcode.ai/provider/v1/models"
 
-/** Environment variables that can carry the API key. */
-export const ENV_KEYS = ["CMD_API_KEY", "COMMANDCODE_API_KEY"] as const
+/**
+ * Primary API key environment variable.
+ *
+ * NOTE: opencode only auto-propagates the env value as `apiKey` when a provider
+ * declares exactly ONE env var, so this list must stay single-entry.
+ * `COMMANDCODE_API_KEY` is honored as a fallback via the config hook instead.
+ */
+export const ENV_KEYS = ["CMD_API_KEY"] as const
+
+/** Alternative API key environment variable, applied as a default by the config hook. */
+export const FALLBACK_ENV_KEY = "COMMANDCODE_API_KEY"
 
 /** SDK packages used per model family. */
 export const ANTHROPIC_NPM = "@ai-sdk/anthropic"

@@ -9,7 +9,7 @@ Every top model — Claude, GPT, Gemini, DeepSeek, Kimi, GLM, MiniMax, Qwen and 
 - **Native `/connect` flow** — run `/connect`, pick *Command Code Go*, paste your API key. Done.
 - **Live model discovery** — the full catalog is fetched from `GET /provider/v1/models` at startup, cached on disk (24h TTL), with a bundled snapshot as offline fallback.
 - **Dual-endpoint routing** — Command Code serves Claude models over the Anthropic `/v1/messages` endpoint and everything else over the OpenAI-compatible `/v1/chat/completions` endpoint. The plugin wires each model to the right SDK automatically (`@ai-sdk/anthropic` vs `@ai-sdk/openai-compatible`), so Claude and open models both just work.
-- **Rich model metadata** — context/output limits, reasoning capability, vision support, interleaved-reasoning field and per-model costs (sourced from models.dev; Command Code bills at underlying upstream rates with no markup).
+- **Rich model metadata** — context/output limits, reasoning capability, vision support, interleaved-reasoning field and per-model costs (official Command Code rates where published, models.dev upstream rates otherwise).
 - **Zero data retention by default** — sends `x-cmd-zdr: 1` on every request so traffic only routes through ZDR-capable upstreams. Opt out with `{"zdr": false}`.
 - **Environment variable auth** — `CMD_API_KEY` or `COMMANDCODE_API_KEY` work without `/connect`.
 - **User config always wins** — anything you define yourself under `provider["commandcode-go"]` in `opencode.json` overrides what the plugin injects.
@@ -54,8 +54,19 @@ Set a default model in your config:
 Or authenticate without `/connect`:
 
 ```bash
-CMD_API_KEY=... opencode
+CMD_API_KEY=... opencode          # primary
+COMMANDCODE_API_KEY=... opencode  # fallback, lower precedence than CMD_API_KEY
 ```
+
+## Pricing & prompt caching
+
+Per-model costs shown by opencode (and used for its usage/cost display) are the **authoritative Command Code rates**, extracted from the official `command-code` package where published, falling back to models.dev upstream rates (Command Code bills at underlying rates with no markup). Cached input is billed at the much cheaper `cacheHit` rate — e.g. `claude-sonnet-5` is $2/M for input but $0.2/M for cached input, so prompt caching pays off on long sessions.
+
+Caching behavior, verified against the live request path:
+
+- **Claude models** (`/v1/messages`): opencode automatically places `cache_control: {"type": "ephemeral"}` breakpoints on the system prompt and conversation prefix. Prompt caching works out of the box — no configuration needed.
+- **OpenAI-compatible models** (`/v1/chat/completions`): opencode sends `x-session-affinity` and `X-Session-Id` headers on every request, so the gateway can route a session's traffic to the same upstream and improve prefix-cache hit rates. OpenAI/open-model prefix caching is otherwise automatic upstream.
+- Command Code meters cache reads and writes separately (the official rate table carries `cacheWrite5m`/`cacheWrite1h`/`cacheHit`); the plugin maps the 5-minute write rate and the hit rate to opencode's `cache_read`/`cache_write` cost fields.
 
 ## Plugin options
 
@@ -120,9 +131,9 @@ Notes:
 
 The plugin registers a `commandcode-go` provider on opencode's merged config at startup:
 
-- Claude models (`claude*`) get `provider.npm = "@ai-sdk/anthropic"`, which targets `POST {baseURL}/messages`.
+- Claude models (`claude*`) get `provider.npm = "@ai-sdk/anthropic"`, which targets `POST {baseURL}/messages` and carries `cache_control` breakpoints for prompt caching.
 - Everything else uses `@ai-sdk/openai-compatible`, which targets `POST {baseURL}/chat/completions`.
-- The API key from `/connect` (stored in opencode's auth store) or `CMD_API_KEY`/`COMMANDCODE_API_KEY` is applied automatically as `apiKey` on both SDKs.
+- The API key from `/connect` (stored in opencode's auth store) or `CMD_API_KEY`/`COMMANDCODE_API_KEY` is applied automatically as `apiKey` on both SDKs (`Authorization: Bearer` on the OpenAI route, `x-api-key` on the Anthropic route — both accepted by Command Code).
 - The model catalog is fetched from the public `GET /provider/v1/models` endpoint, cached at `~/.cache/opencode-commandgo-auth/models.json`, and falls back to a bundled snapshot when offline.
 
 ## Troubleshooting

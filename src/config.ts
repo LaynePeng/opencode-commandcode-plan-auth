@@ -4,6 +4,7 @@ import {
   ANTHROPIC_PREFIX,
   DEFAULT_BASE_URL,
   ENV_KEYS,
+  FALLBACK_ENV_KEY,
   OPENAI_COMPATIBLE_NPM,
   PROVIDER_ID,
   PROVIDER_NAME,
@@ -101,6 +102,16 @@ export async function registerProvider(
         ? existingOptions["baseURL"]
         : (opts.baseURL ?? DEFAULT_BASE_URL),
     headers,
+  }
+
+  // COMMANDCODE_API_KEY fallback: applied only when the primary env var and the
+  // user's own apiKey config are both absent, so /connect and CMD_API_KEY win.
+  if (
+    existingOptions["apiKey"] === undefined &&
+    !process.env[ENV_KEYS[0] as keyof typeof process.env] &&
+    process.env[FALLBACK_ENV_KEY as keyof typeof process.env]
+  ) {
+    options["apiKey"] = process.env[FALLBACK_ENV_KEY as keyof typeof process.env]
   }
 
   cfg.provider[PROVIDER_ID] = {
