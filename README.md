@@ -1,4 +1,4 @@
-# opencode-commandgo-auth
+# opencode-commandcode-plan-auth
 
 [Command Code](https://commandcode.ai) (CommandCode) Provider API as a first-class [opencode](https://opencode.ai) provider.
 
@@ -19,8 +19,8 @@ Every top model — Claude, GPT, Gemini, DeepSeek, Kimi, GLM, MiniMax, Qwen and 
 ### From source
 
 ```bash
-git clone https://github.com/LaynePeng/opencode-commandgo-auth.git
-cd opencode-commandgo-auth
+git clone https://github.com/LaynePeng/opencode-commandcode-plan-auth.git
+cd opencode-commandcode-plan-auth
 npm install && npm run build
 mkdir -p ~/.config/opencode/plugins
 ln -s "$PWD/dist/index.js" ~/.config/opencode/plugins/commandcode-go.ts
@@ -33,7 +33,7 @@ Restart opencode. The plugin is auto-discovered from the global plugins director
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-commandgo-auth"]
+  "plugin": ["opencode-commandcode-plan-auth"]
 }
 ```
 
@@ -73,7 +73,7 @@ Caching behavior, verified against the live request path:
 ```json
 {
   "plugin": [
-    ["opencode-commandgo-auth", { "zdr": false }]
+    ["opencode-commandcode-plan-auth", { "zdr": false }]
   ]
 }
 ```
@@ -134,15 +134,15 @@ The plugin registers a `commandcode-go` provider on opencode's merged config at 
 - Claude models (`claude*`) get `provider.npm = "@ai-sdk/anthropic"`, which targets `POST {baseURL}/messages` and carries `cache_control` breakpoints for prompt caching.
 - Everything else uses `@ai-sdk/openai-compatible`, which targets `POST {baseURL}/chat/completions`.
 - The API key from `/connect` (stored in opencode's auth store) or `CMD_API_KEY`/`COMMANDCODE_API_KEY` is applied automatically as `apiKey` on both SDKs (`Authorization: Bearer` on the OpenAI route, `x-api-key` on the Anthropic route — both accepted by Command Code).
-- The model catalog is fetched from the public `GET /provider/v1/models` endpoint, cached at `~/.cache/opencode-commandgo-auth/models.json`, and falls back to a bundled snapshot when offline.
+- The model catalog is fetched from the public `GET /provider/v1/models` endpoint, cached at `~/.cache/opencode-commandcode-plan-auth/models.json`, and falls back to a bundled snapshot when offline.
 
 ## Troubleshooting
 
-- **Provider or models missing** — run `opencode models commandcode-go`. Check `~/.local/share/opencode/log/` for `opencode-commandgo-auth` entries, and confirm the plugin file loads: `bun run ~/.config/opencode/plugins/commandcode-go.ts` should print nothing and exit 0.
+- **Provider or models missing** — run `opencode models commandcode-go`. Check `~/.local/share/opencode/log/` for `opencode-commandcode-plan-auth` entries, and confirm the plugin file loads: `bun run ~/.config/opencode/plugins/commandcode-go.ts` should print nothing and exit 0.
 - **`400` on a Claude model** — make sure the model id starts with `claude`; the plugin routes on that prefix. A `400` pointing you at `/v1/messages` means a Claude model was sent to the OpenAI endpoint.
 - **`422 cmd_zdr_no_providers`** — the model has no ZDR-capable upstream. Disable ZDR or use another model.
 - **`403 upgrade_required`** — you are on the Go plan, the only plan without API access.
-- **Stale model list** — delete `~/.cache/opencode-commandgo-auth/models.json` and restart opencode.
+- **Stale model list** — delete `~/.cache/opencode-commandcode-plan-auth/models.json` and restart opencode.
 
 ## Development
 

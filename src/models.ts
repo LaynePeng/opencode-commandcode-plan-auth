@@ -15,7 +15,7 @@ type CacheShape = {
 
 function cacheFile(): string {
   const root = process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache")
-  return join(root, "opencode-commandgo-auth", "models.json")
+  return join(root, "opencode-commandcode-plan-auth", "models.json")
 }
 
 async function readCache(): Promise<CacheShape | undefined> {

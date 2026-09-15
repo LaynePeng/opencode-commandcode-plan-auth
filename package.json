@@ -1,5 +1,5 @@
 {
-  "name": "opencode-commandgo-auth",
+  "name": "opencode-commandcode-plan-auth",
   "version": "0.1.0",
   "description": "opencode plugin for the Command Code (CommandCode) Provider API: /connect auth, live model discovery, and dual-endpoint routing (Anthropic for Claude, OpenAI-compatible for everything else).",
   "type": "module",
@@ -42,7 +42,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LaynePeng/opencode-commandgo-auth.git"
+    "url": "git+https://github.com/LaynePeng/opencode-commandcode-plan-auth.git"
   },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.18.31",

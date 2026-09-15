@@ -23,7 +23,7 @@ export const CommandGoAuthPlugin: Plugin = async ({ client }, options) => {
   const log = async (level: "info" | "error", message: string) => {
     try {
       await client.app.log({
-        body: { service: "opencode-commandgo-auth", level, message },
+        body: { service: "opencode-commandcode-plan-auth", level, message },
       })
     } catch {
       // client logging is best-effort
