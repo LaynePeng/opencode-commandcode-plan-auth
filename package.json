@@ -1,0 +1,53 @@
+{
+  "name": "opencode-commandgo-auth",
+  "version": "0.1.0",
+  "description": "opencode plugin for the Command Code (CommandCode) Provider API: /connect auth, live model discovery, and dual-endpoint routing (Anthropic for Claude, OpenAI-compatible for everything else).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "commandcode",
+    "command-code",
+    "commandgo",
+    "provider",
+    "ai",
+    "claude",
+    "deepseek",
+    "glm",
+    "kimi",
+    "qwen"
+  ],
+  "author": "Layne Peng",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LaynePeng/opencode-commandgo-auth.git"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.18.31",
+    "@types/node": "^26.5.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
