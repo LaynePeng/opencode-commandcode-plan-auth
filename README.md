@@ -2,19 +2,44 @@
 
 [Command Code](https://commandcode.ai) (CommandCode) Provider API as a first-class [opencode](https://opencode.ai) provider.
 
+> Requires **opencode V2** (`@opencode/plugin` v2). V1 plugin implementations do not run in V2 — this package targets the V2 plugin API.
+
 Every top model — Claude, GPT, Gemini, DeepSeek, Kimi, GLM, MiniMax, Qwen and more — through one subscription, with the same `/connect` experience as any built-in provider.
 
 ## Features
 
 - **Native `/connect` flow** — run `/connect`, pick *Command Code Go*, paste your API key. Done.
 - **Live model discovery** — the full catalog is fetched from `GET /provider/v1/models` at startup, cached on disk (24h TTL), with a bundled snapshot as offline fallback.
-- **Dual-endpoint routing** — Command Code serves Claude models over the Anthropic `/v1/messages` endpoint and everything else over the OpenAI-compatible `/v1/chat/completions` endpoint. The plugin wires each model to the right SDK automatically (`@ai-sdk/anthropic` vs `@ai-sdk/openai-compatible`), so Claude and open models both just work.
-- **Rich model metadata** — context/output limits, reasoning capability, vision support, interleaved-reasoning field and per-model costs (official Command Code rates where published, models.dev upstream rates otherwise).
+- **Dual-endpoint routing** — Command Code serves Claude models over the Anthropic `/v1/messages` endpoint and everything else over the OpenAI-compatible `/v1/chat/completions` endpoint. The provider default uses `@opencode/ai/providers/openai-compatible`, and every `claude*` model overrides it with `@opencode/ai/providers/anthropic`, so Claude and open models both just work from one provider.
+- **Rich model metadata** — context/output limits, tool and vision capabilities, reasoning field and per-model costs (official Command Code rates where published, models.dev upstream rates otherwise).
 - **Zero data retention by default** — sends `x-cmd-zdr: 1` on every request so traffic only routes through ZDR-capable upstreams. Opt out with `{"zdr": false}`.
 - **Environment variable auth** — `CMD_API_KEY` or `COMMANDCODE_API_KEY` work without `/connect`.
-- **User config always wins** — anything you define yourself under `provider["commandcode-go"]` in `opencode.json` overrides what the plugin injects.
+- **User config always wins** — anything you define yourself under `providers["commandcode-go"]` in `opencode.json` overrides what the plugin registers.
 
 ## Install
+
+### From npm
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["opencode-commandcode-plan-auth"]
+}
+```
+
+Or with options:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "opencode-commandcode-plan-auth",
+      "options": { "zdr": false }
+    }
+  ]
+}
+```
 
 ### From source
 
@@ -28,14 +53,72 @@ ln -s "$PWD/dist/index.js" ~/.config/opencode/plugins/commandcode-go.ts
 
 Restart opencode. The plugin is auto-discovered from the global plugins directory.
 
-### From npm (once published)
+## Upgrading from OpenCode V1
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-commandcode-plan-auth"]
-}
-```
+OpenCode V2 changes the **plugin API** (one of the intentional breaking changes in the [V2 migration guide](https://opencode.ai/v2/docs/migrate-v1)). **V1 plugins do not run in V2.** Update both the plugin and your configuration:
+
+1. **Make sure you are on OpenCode V2**, then rebuild/upgrade this plugin. v0.2.0+ targets the V2 `Plugin.define` API.
+
+   ```bash
+   cd ~/codes/commnd-go-plugin      # or wherever you cloned it
+   git pull
+   npm install && npm run build
+   ```
+
+2. **Replace the plugin file.** The old symlink still points at the same path, but the old V1 build is incompatible — recreate it so it points at the new V2 build:
+
+   ```bash
+   rm -f ~/.config/opencode/plugins/commandcode-go.ts
+   ln -s "$PWD/dist/index.js" ~/.config/opencode/plugins/commandcode-go.ts
+   ```
+
+   If you installed from npm, move the entry from the V1 `plugin` array to the V2 `plugins` array:
+
+   ```jsonc
+   {
+     // before (V1)
+     "plugin": [["opencode-commandcode-plan-auth", { "zdr": false }]],
+     // after (V2)
+     "plugins": [
+       { "package": "opencode-commandcode-plan-auth", "options": { "zdr": false } }
+     ]
+   }
+   ```
+
+3. **Reconnect the provider.** V1 stored the `/connect` key in `~/.local/share/opencode/auth.json` under `commandcode-go`; V2 moves credentials into `~/.local/share/opencode/account.json` and binds them to an *integration*. Catalog providers migrate automatically, but the Command Code integration did not exist in V1, so run:
+
+   ```text
+   /connect   →   Command Code Go   →   paste your API key
+   ```
+
+   Or skip `/connect` and start opencode with `CMD_API_KEY=...`.
+
+4. **Restart the server after changing plugins.** OpenCode caches loaded plugin modules in the running server process, and that cache is not invalidated by editing or re-symlinking the file. A hot reload is not enough when the plugin's dependencies changed:
+
+   ```bash
+   opencode service restart
+   ```
+
+   Then verify:
+
+   ```bash
+   opencode plugin list                    # commandcode-go should be listed with its local source
+   opencode models | grep commandcode-go   # 70+ models
+   ```
+
+5. **Model catalog cache (optional).** The plugin caches the live catalog at `~/.cache/opencode-commandcode-plan-auth/models.json` (24h TTL). It is unrelated to the V1→V2 upgrade; delete it only to force a refetch:
+
+   ```bash
+   rm -f ~/.cache/opencode-commandcode-plan-auth/models.json
+   ```
+
+### Upgrade symptoms
+
+| Symptom | Cause / fix |
+| --- | --- |
+| `Plugin must export a default definition with an id and an effect or setup function.` | A V1 plugin build is being loaded. Rebuild v0.2.0+, then `opencode service restart`. |
+| `Cannot find package '@opencode/plugin'` | The plugin's dependency is not resolvable from the plugin location. Run `npm install` in the repo (source install) or install the package into `~/.config/opencode`. |
+| Error persists right after rebuilding | The running server cached the old module. Run `opencode service restart` (or fully quit and reopen opencode). |
 
 ## Usage
 
@@ -45,7 +128,7 @@ Restart opencode. The plugin is auto-discovered from the global plugins director
 
 Set a default model in your config:
 
-```json
+```jsonc
 {
   "model": "commandcode-go/claude-sonnet-5"
 }
@@ -65,15 +148,18 @@ Per-model costs shown by opencode (and used for its usage/cost display) are the 
 Caching behavior, verified against the live request path:
 
 - **Claude models** (`/v1/messages`): opencode automatically places `cache_control: {"type": "ephemeral"}` breakpoints on the system prompt and conversation prefix. Prompt caching works out of the box — no configuration needed.
-- **OpenAI-compatible models** (`/v1/chat/completions`): opencode sends `x-session-affinity` and `X-Session-Id` headers on every request, so the gateway can route a session's traffic to the same upstream and improve prefix-cache hit rates. OpenAI/open-model prefix caching is otherwise automatic upstream.
-- Command Code meters cache reads and writes separately (the official rate table carries `cacheWrite5m`/`cacheWrite1h`/`cacheHit`); the plugin maps the 5-minute write rate and the hit rate to opencode's `cache_read`/`cache_write` cost fields.
+- **OpenAI-compatible models** (`/v1/chat/completions`): OpenAI/open-model prefix caching is automatic upstream.
+- Command Code meters cache reads and writes separately (the official rate table carries `cacheWrite5m`/`cacheWrite1h`/`cacheHit`); the plugin maps the 5-minute write rate and the hit rate to opencode's cache read/write cost fields.
 
 ## Plugin options
 
-```json
+```jsonc
 {
-  "plugin": [
-    ["opencode-commandcode-plan-auth", { "zdr": false }]
+  "plugins": [
+    {
+      "package": "opencode-commandcode-plan-auth",
+      "options": { "zdr": false }
+    }
   ]
 }
 ```
@@ -87,13 +173,14 @@ Caching behavior, verified against the live request path:
 
 ## Overriding models
 
-Everything the plugin injects can be overridden per model in `opencode.json`. Your entries replace the plugin's for the same model id:
+Everything the plugin registers can be overridden per provider/model in `opencode.json`. Your entries are applied on top of the plugin's registration:
 
-```json
+```jsonc
 {
-  "provider": {
+  "providers": {
     "commandcode-go": {
-      "options": { "timeout": 600000 },
+      "settings": { "timeout": 600000 },
+      "headers": { "x-cmd-zdr": "0" },
       "models": {
         "claude-sonnet-5": {
           "name": "Claude Sonnet 5 (my alias)",
@@ -105,13 +192,15 @@ Everything the plugin injects can be overridden per model in `opencode.json`. Yo
 }
 ```
 
-Use `blacklist` / `whitelist` on the provider to trim the model picker, e.g.:
+To trim the model picker, disable models you do not want with `disabled: true`:
 
-```json
+```jsonc
 {
-  "provider": {
+  "providers": {
     "commandcode-go": {
-      "whitelist": ["claude-sonnet-5", "deepseek/deepseek-v4-flash", "zai-org/GLM-5.3"]
+      "models": {
+        "gpt-5.4": { "disabled": true }
+      }
     }
   }
 }
@@ -129,17 +218,17 @@ Notes:
 
 ## How it works
 
-The plugin registers a `commandcode-go` provider on opencode's merged config at startup:
+The plugin default-exports `Plugin.define({ id: "commandcode-go", setup })` and registers everything through V2 domain transforms at startup:
 
-- Claude models (`claude*`) get `provider.npm = "@ai-sdk/anthropic"`, which targets `POST {baseURL}/messages` and carries `cache_control` breakpoints for prompt caching.
-- Everything else uses `@ai-sdk/openai-compatible`, which targets `POST {baseURL}/chat/completions`.
-- The API key from `/connect` (stored in opencode's auth store) or `CMD_API_KEY`/`COMMANDCODE_API_KEY` is applied automatically as `apiKey` on both SDKs (`Authorization: Bearer` on the OpenAI route, `x-api-key` on the Anthropic route — both accepted by Command Code).
-- The model catalog is fetched from the public `GET /provider/v1/models` endpoint, cached at `~/.cache/opencode-commandcode-plan-auth/models.json`, and falls back to a bundled snapshot when offline.
+- **Provider** (`ctx.provider.transform`) — registers `commandcode-go` with `package` set to the OpenAI-compatible runtime, `settings.baseURL`, the ZDR `headers`, and the full model catalog. `claude*` models carry a model-level `package` override pointing at the Anthropic runtime, so Claude goes to `/messages` and everything else to `/chat/completions`.
+- **Model catalog** — fetched from the public `GET /provider/v1/models` endpoint, cached at `~/.cache/opencode-commandcode-plan-auth/models.json`, and falls back to a bundled snapshot when offline.
+- **Auth** (`ctx.integration.transform`) — registers the `commandcode-go` integration with a `key` method (drives `/connect`) and an `env` method (`CMD_API_KEY` / `COMMANDCODE_API_KEY`). The provider links to the integration with `integrationID`, so opencode applies the credential automatically.
 
 ## Troubleshooting
 
-- **Provider or models missing** — run `opencode models commandcode-go`. Check `~/.local/share/opencode/log/` for `opencode-commandcode-plan-auth` entries, and confirm the plugin file loads: `bun run ~/.config/opencode/plugins/commandcode-go.ts` should print nothing and exit 0.
-- **`400` on a Claude model** — make sure the model id starts with `claude`; the plugin routes on that prefix. A `400` pointing you at `/v1/messages` means a Claude model was sent to the OpenAI endpoint.
+- **Provider or models missing** — run `opencode models commandcode-go`. Check `~/.local/share/opencode/log/` for `failed to load plugin` and `commandcode` entries, and confirm the plugin file loads: `bun run ~/.config/opencode/plugins/commandcode-go.ts` should print nothing and exit 0.
+- **`failed to load plugin` with `Plugin must export a default definition`** — you are on opencode V2 running a V1 plugin build. Rebuild this package (it uses the V2 `Plugin.define` API), make sure `@opencode/plugin` is resolvable next to the plugin, and restart the service (`opencode service restart`) — see [Upgrading from OpenCode V1](#upgrading-from-opencode-v1).
+- **`400` on a Claude model** — make sure the model id starts with `claude`; the plugin routes Claude models to the Anthropic package. A `400` pointing you at `/v1/messages` means a Claude model was sent to the OpenAI endpoint.
 - **`422 cmd_zdr_no_providers`** — the model has no ZDR-capable upstream. Disable ZDR or use another model.
 - **`403 upgrade_required`** — you are on the Go plan, the only plan without API access.
 - **Stale model list** — delete `~/.cache/opencode-commandcode-plan-auth/models.json` and restart opencode.

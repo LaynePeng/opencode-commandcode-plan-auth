@@ -1,6 +1,6 @@
 {
   "name": "opencode-commandcode-plan-auth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "opencode plugin for the Command Code (CommandCode) Provider API: /connect auth, live model discovery, and dual-endpoint routing (Anthropic for Claude, OpenAI-compatible for everything else).",
   "type": "module",
   "main": "./dist/index.js",
@@ -44,8 +44,10 @@
     "type": "git",
     "url": "git+https://github.com/LaynePeng/opencode-commandcode-plan-auth.git"
   },
+  "dependencies": {
+    "@opencode/plugin": "^2.0.10"
+  },
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.18.31",
     "@types/node": "^26.5.1",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"

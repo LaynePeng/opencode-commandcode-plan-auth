@@ -1,11 +1,10 @@
-import type { Config } from "@opencode-ai/plugin"
+import { Model, Provider, Integration, type Plugin } from "@opencode/plugin"
 import {
-  ANTHROPIC_NPM,
+  ANTHROPIC_PACKAGE,
   ANTHROPIC_PREFIX,
   DEFAULT_BASE_URL,
-  ENV_KEYS,
-  FALLBACK_ENV_KEY,
-  OPENAI_COMPATIBLE_NPM,
+  INTEGRATION_ID,
+  OPENAI_COMPATIBLE_PACKAGE,
   PROVIDER_ID,
   PROVIDER_NAME,
   ZDR_HEADER,
@@ -16,68 +15,70 @@ import { getModelCatalog } from "./models"
 import type { CommandGoOptions } from "./options"
 
 /**
- * A provider-level model entry in opencode.json shape.
- * `interleaved` is accepted by the opencode config schema but missing from the
- * SDK type, so it is added here.
+ * Convert one Command Code catalog entry into a V2 `Model.Info`.
+ *
+ * V1 routing via `provider.npm` / per-model `provider` maps to V2's `package`
+ * field, which can be set per model. Claude models get the Anthropic package so
+ * they are served over `/messages`; everything else inherits the provider-level
+ * OpenAI-compatible package.
  */
-type ProviderModelEntry = {
-  id?: string
-  name?: string
-  release_date?: string
-  attachment?: boolean
-  reasoning?: boolean
-  temperature?: boolean
-  tool_call?: boolean
-  interleaved?: boolean | string | { field: string }
-  cost?: { input: number; output: number; cache_read?: number; cache_write?: number }
-  limit?: { context: number; output: number }
-  status?: "alpha" | "beta" | "deprecated" | "active"
-  options?: Record<string, unknown>
-  headers?: Record<string, string>
-  provider?: { npm: string }
-}
-
-export function mapModel(raw: RawModel): ProviderModelEntry {
+export function mapModel(providerID: Provider.ID, raw: RawModel): Model.Info {
   const meta = resolveModelMeta(raw.id)
-  const entry: ProviderModelEntry = {
+  const base = Model.Info.default(providerID, Model.ID.make(raw.id))
+
+  const capabilities = {
+    tools: meta.toolCall !== false,
+    input: meta.attachment === true ? ["text", "image"] : ["text"],
+    output: ["text"],
+  }
+
+  const cost = (
+    meta.cost
+      ? [
+          {
+            input: meta.cost.input,
+            output: meta.cost.output,
+            cache: {
+              read: meta.cost.cache_read ?? 0,
+              write: meta.cost.cache_write ?? 0,
+            },
+          },
+        ]
+      : []
+  ) as unknown as Model.Info["cost"]
+
+  const compatibility = meta.interleaved
+    ? ({ reasoningField: meta.interleaved } as unknown as Model.Info["compatibility"])
+    : undefined
+
+  const pkg = raw.id.startsWith(ANTHROPIC_PREFIX) ? ANTHROPIC_PACKAGE : undefined
+
+  return {
+    ...base,
     name: raw.name && raw.name.length > 0 ? raw.name : raw.id,
+    capabilities,
     limit: {
       context: raw.context_length && raw.context_length > 0 ? raw.context_length : 128000,
       output: meta.output,
     },
+    time: { released: meta.release_date ? Date.parse(meta.release_date) : 0 },
+    cost,
+    ...(compatibility ? { compatibility } : {}),
+    ...(pkg ? { package: pkg } : {}),
   }
-  if (meta.reasoning) entry.reasoning = true
-  if (meta.toolCall === false) entry.tool_call = false
-  if (meta.temperature) entry.temperature = true
-  if (meta.attachment) entry.attachment = true
-  if (meta.interleaved) entry.interleaved = meta.interleaved
-  if (meta.cost) entry.cost = meta.cost
-  if (meta.release_date) entry.release_date = meta.release_date
-  // Command Code serves Claude models over the Anthropic /messages endpoint
-  // and everything else over the OpenAI-compatible /chat/completions endpoint.
-  if (raw.id.startsWith(ANTHROPIC_PREFIX)) {
-    entry.provider = { npm: ANTHROPIC_NPM }
-  }
-  return entry
 }
 
 /**
- * Register the `commandcode-go` provider on the live merged config.
+ * Register the `commandcode-go` provider on the live V2 provider registry.
  *
- * Anything the user defined themselves in opencode.json takes precedence:
- * their provider options and their per-model entries are preserved, the
- * plugin only fills in what is missing.
+ * Registered through a provider transform, so it is replayed whenever the
+ * registry rebuilds. User configuration in `providers["commandcode-go"]` is
+ * applied by opencode on top of transform output and therefore still wins.
  */
 export async function registerProvider(
-  cfg: Config,
+  ctx: Plugin.Context,
   opts: CommandGoOptions,
 ): Promise<{ count: number; source: string }> {
-  cfg.provider = cfg.provider ?? {}
-  const existing = cfg.provider[PROVIDER_ID] ?? {}
-  const existingOptions = (existing.options ?? {}) as Record<string, unknown>
-  const existingHeaders =
-    (existingOptions["headers"] as Record<string, string> | undefined) ?? undefined
-
   let raw: RawModel[]
   let source: string
   if (opts.fetchModels === false) {
@@ -89,40 +90,27 @@ export async function registerProvider(
     source = catalog.source
   }
 
-  const models: Record<string, ProviderModelEntry> = {}
-  for (const model of raw) models[model.id] = mapModel(model)
+  const providerID = Provider.ID.make(PROVIDER_ID)
+  const models = raw.map((model) => mapModel(providerID, model))
 
-  const headers: Record<string, string> = { ...(existingHeaders ?? {}) }
-  if (opts.zdr !== false && headers[ZDR_HEADER] === undefined) headers[ZDR_HEADER] = "1"
+  const baseURL = opts.baseURL ?? DEFAULT_BASE_URL
+  const headers: Record<string, string> = {}
+  if (opts.zdr !== false) headers[ZDR_HEADER] = "1"
 
-  const options: Record<string, unknown> = {
-    ...existingOptions,
-    baseURL:
-      typeof existingOptions["baseURL"] === "string" && existingOptions["baseURL"]
-        ? existingOptions["baseURL"]
-        : (opts.baseURL ?? DEFAULT_BASE_URL),
-    headers,
-  }
+  await ctx.provider.transform((editor) => {
+    editor.add({
+      info: {
+        ...Provider.Info.empty(providerID),
+        name: PROVIDER_NAME,
+        activation: "enabled",
+        package: OPENAI_COMPATIBLE_PACKAGE,
+        integrationID: Integration.ID.make(INTEGRATION_ID),
+        settings: { baseURL },
+        headers,
+      },
+      models,
+    })
+  })
 
-  // COMMANDCODE_API_KEY fallback: applied only when the primary env var and the
-  // user's own apiKey config are both absent, so /connect and CMD_API_KEY win.
-  if (
-    existingOptions["apiKey"] === undefined &&
-    !process.env[ENV_KEYS[0] as keyof typeof process.env] &&
-    process.env[FALLBACK_ENV_KEY as keyof typeof process.env]
-  ) {
-    options["apiKey"] = process.env[FALLBACK_ENV_KEY as keyof typeof process.env]
-  }
-
-  cfg.provider[PROVIDER_ID] = {
-    ...existing,
-    name: existing.name ?? PROVIDER_NAME,
-    npm: existing.npm ?? OPENAI_COMPATIBLE_NPM,
-    env: existing.env ?? [...ENV_KEYS],
-    options,
-    // user-defined entries win over plugin-generated ones
-    models: { ...models, ...existing.models },
-  }
-
-  return { count: Object.keys(cfg.provider[PROVIDER_ID]?.models ?? {}).length, source }
+  return { count: models.length, source }
 }

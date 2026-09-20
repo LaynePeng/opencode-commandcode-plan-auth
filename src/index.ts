@@ -1,14 +1,14 @@
-import type { Plugin } from "@opencode-ai/plugin"
-import { authHook } from "./auth"
+import { Plugin } from "@opencode/plugin"
+import { registerAuth } from "./auth"
 import { PROVIDER_ID, PROVIDER_NAME } from "./constants"
 import { registerProvider } from "./config"
 import { parseOptions } from "./options"
 
 /**
- * opencode plugin that adds the Command Code (CommandCode) Provider API as a
+ * opencode V2 plugin that adds the Command Code (CommandCode) Provider API as a
  * first-class provider:
  *
- * - registers the `commandcode-go` provider with the right SDK routing
+ * - registers the `commandcode-go` provider with the right package routing
  *   (Anthropic `/messages` for Claude models, OpenAI-compatible
  *   `/chat/completions` for everything else)
  * - discovers the live model catalog from `GET /provider/v1/models`
@@ -16,39 +16,26 @@ import { parseOptions } from "./options"
  * - integrates with `/connect` for API key entry, and honors
  *   `CMD_API_KEY` / `COMMANDCODE_API_KEY` environment variables
  * - sends the `x-cmd-zdr: 1` zero-data-retention header by default
+ *
+ * V2 plugin entrypoint: a default-exported definition with an `id` and
+ * `setup(ctx)`. Registration happens through domain transforms.
  */
-export const CommandGoAuthPlugin: Plugin = async ({ client }, options) => {
-  const opts = parseOptions(options)
+export default Plugin.define({
+  id: PROVIDER_ID,
+  async setup(ctx) {
+    const opts = parseOptions(ctx.options)
 
-  const log = async (level: "info" | "error", message: string) => {
+    await registerAuth(ctx)
+
     try {
-      await client.app.log({
-        body: { service: "opencode-commandcode-plan-auth", level, message },
-      })
-    } catch {
-      // client logging is best-effort
+      const { count, source } = await registerProvider(ctx, opts)
+      console.log(`[${PROVIDER_ID}] registered ${PROVIDER_NAME} provider with ${count} models (catalog: ${source})`)
+    } catch (error) {
+      console.error(
+        `[${PROVIDER_ID}] failed to register provider: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
-  }
-
-  return {
-    config: async (cfg) => {
-      try {
-        const { count, source } = await registerProvider(cfg, opts)
-        await log("info", `registered ${PROVIDER_NAME} provider with ${count} models (catalog: ${source})`)
-      } catch (error) {
-        await log(
-          "error",
-          `failed to register provider: ${error instanceof Error ? error.message : String(error)}`,
-        )
-      }
-    },
-    auth: authHook,
-  }
-}
-
-export default CommandGoAuthPlugin
-
-// NOTE: opencode's plugin loader requires every module export to be a function
-// (or a `{ server }` module object). Do not export constants from this entry.
+  },
+})
 
 export type { CommandGoOptions } from "./options"
