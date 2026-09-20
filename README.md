@@ -3,6 +3,12 @@
 [Command Code](https://commandcode.ai) (CommandCode) Provider API as a first-class [opencode](https://opencode.ai) provider.
 
 > Requires **opencode V2** (`@opencode/plugin` v2). V1 plugin implementations do not run in V2 — this package targets the V2 plugin API.
+>
+> **Still on opencode V1?** v0.2.0+ is V2-only and will not load on V1. Use the last V1-compatible release instead: [`v0.1.0`](https://github.com/LaynePeng/opencode-commandcode-plan-auth/tree/v0.1.0).
+>
+> ```bash
+> git clone --branch v0.1.0 https://github.com/LaynePeng/opencode-commandcode-plan-auth.git
+> ```
 
 Every top model — Claude, GPT, Gemini, DeepSeek, Kimi, GLM, MiniMax, Qwen and more — through one subscription, with the same `/connect` experience as any built-in provider.
 
@@ -54,6 +60,8 @@ ln -s "$PWD/dist/index.js" ~/.config/opencode/plugins/commandcode-go.ts
 Restart opencode. The plugin is auto-discovered from the global plugins directory.
 
 ## Upgrading from OpenCode V1
+
+> **Not upgrading?** If you are staying on opencode V1, do **not** install v0.2.0+. Pin the last V1-compatible release, [`v0.1.0`](https://github.com/LaynePeng/opencode-commandcode-plan-auth/tree/v0.1.0), and keep the V1 `plugin` config shape below.
 
 OpenCode V2 changes the **plugin API** (one of the intentional breaking changes in the [V2 migration guide](https://opencode.ai/v2/docs/migrate-v1)). **V1 plugins do not run in V2.** Update both the plugin and your configuration:
 
