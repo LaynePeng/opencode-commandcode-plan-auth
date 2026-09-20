@@ -54,6 +54,6 @@ Last release targeting the OpenCode **V1** plugin API (`@opencode-ai/plugin`).
 - Renamed the package to `opencode-commandcode-plan-auth`.
 - Model costs updated to official Command Code rates; fixed the environment key on the Anthropic route.
 
-[Unreleased]: https://github.com/LaynePeng/opencode-commandcode-plan-auth/compare/main...HEAD
-[0.2.0]: https://github.com/LaynePeng/opencode-commandcode-plan-auth/compare/v0.1.0...main
+[Unreleased]: https://github.com/LaynePeng/opencode-commandcode-plan-auth/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/LaynePeng/opencode-commandcode-plan-auth/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/LaynePeng/opencode-commandcode-plan-auth/releases/tag/v0.1.0
