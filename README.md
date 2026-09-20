@@ -251,6 +251,10 @@ npm run typecheck
 
 The model metadata snapshot (`src/metadata.ts`) and offline fallback (`src/fallback.ts`) are generated from the live catalog plus models.dev data. Refresh them when Command Code ships new models.
 
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for release notes. The v0.2.0 entry documents the OpenCode V1 → V2 breaking change.
+
 ## License
 
 [MIT](./LICENSE)

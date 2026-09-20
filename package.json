@@ -1,7 +1,7 @@
 {
   "name": "opencode-commandcode-plan-auth",
   "version": "0.2.0",
-  "description": "opencode plugin for the Command Code (CommandCode) Provider API: /connect auth, live model discovery, and dual-endpoint routing (Anthropic for Claude, OpenAI-compatible for everything else).",
+  "description": "opencode V2 plugin for the Command Code (CommandCode) Provider API: /connect auth, live model discovery, and dual-endpoint routing (Anthropic for Claude, OpenAI-compatible for everything else).",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -16,6 +16,7 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
@@ -40,6 +41,9 @@
   ],
   "author": "Layne Peng",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/LaynePeng/opencode-commandcode-plan-auth.git"
